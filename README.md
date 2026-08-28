@@ -103,16 +103,3 @@ Le simulateur est organisé autour de plusieurs fonctions principales :
 
 L’algorithme principal traite successivement les événements jusqu’à atteindre l’horizon de simulation défini.
 
----
-
-## Structure du dépôt
-
-```text
-Discrete-Event-Simulation-AGV/
-│
-├── README.md
-├── README_FR.md
-├── README_EN.md
-│
-└── src/
-    └── simulation_agv.c
