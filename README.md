@@ -1,67 +1,118 @@
-Simulation à événements discrets d’un système logistique avec AGV
+# Simulation à événements discrets d’un système logistique avec AGV
 
-Présentation
+## Présentation
 
-Projet réalisé en groupe dans le cadre de l’UE SY15 à l’Université de Technologie de Troyes (UTT).
+Projet réalisé en groupe dans le cadre de l’UE **SY15** à l’Université de Technologie de Troyes (UTT).
 
-L’objectif du projet était de modéliser et simuler le fonctionnement d’un système logistique industriel comprenant deux véhicules autonomes (AGV), une zone de chargement et plusieurs zones de déchargement.
+L’objectif était de modéliser puis de simuler le fonctionnement d’un système logistique industriel utilisant des véhicules autonomes de manutention (AGV).
 
-À partir de l’observation du système réel, le travail consistait à identifier les flux, les événements et les temps caractéristiques, puis à développer un simulateur à événements discrets en langage C permettant d’analyser les performances du système et d’étudier l’impact de modifications de fonctionnement.
+À partir de l’observation d’une plateforme physique, nous avons identifié les flux, les différents événements du système ainsi que les temps caractéristiques nécessaires à sa modélisation.
 
-Système étudié
+Un simulateur à événements discrets a ensuite été développé en **langage C** afin de reproduire le fonctionnement du système, mesurer ses performances et permettre l’étude de différentes configurations.
 
-Le système simulé comprend :
+---
 
-2 AGV assurant le transport des lots
+## Système étudié
 
-1 zone de chargement
+La plateforme est composée de :
 
-4 zones de déchargement
+- 2 AGV assurant le transport des lots
+- 1 zone de chargement
+- 4 zones de déchargement
+- 1 zone de recharge
+- une file d’attente pour les lots en attente de prise en charge
 
-une file d’attente pour les lots en attente de prise en charge
+Les AGV assurent le transfert des lots depuis la zone de chargement vers différentes zones de dépôt selon une règle d’affectation probabiliste.
 
-des temps de déplacement, de chargement et de déchargement représentés par des lois probabilistes
+---
 
-Principe de la simulation
+## Principe de la simulation
 
-Le programme repose sur une approche de simulation à événements discrets.
+Le programme repose sur une approche de **simulation à événements discrets**.
 
-Les principaux événements représentés sont :
+Le temps de simulation évolue directement d’un événement au suivant grâce à un échéancier contenant les prochains événements à traiter.
 
-arrivée d’un nouveau lot
+Les principaux événements modélisés sont :
 
-fin du chargement d’un lot
+1. Arrivée d’un nouveau lot
+2. Fin du chargement d’un lot
+3. Arrivée d’un AGV dans une zone de déchargement
+4. Fin du déchargement
+5. Retour de l’AGV vers la zone de chargement
 
-arrivée d’un AGV dans une zone de déchargement
+Le programme gère également :
 
-fin du déchargement
+- l’état des différentes zones
+- la disponibilité des AGV
+- les files d’attente
+- l’affectation des lots
+- les conflits liés à l’occupation des zones
 
-retour de l’AGV
+---
 
-Un échéancier conserve les prochains événements à traiter. La simulation avance directement d’un événement au suivant jusqu’à atteindre l’horizon de simulation défini.
+## Modélisation probabiliste
 
-Modélisation probabiliste
+Le fonctionnement du système comporte plusieurs phénomènes aléatoires.
 
-Plusieurs lois sont utilisées pour représenter le caractère aléatoire du système :
+Différentes lois de probabilité sont donc utilisées dans la simulation :
 
-loi exponentielle pour les temps entre deux arrivées de lots
+### Loi exponentielle
 
-loi discrète pour l’affectation des lots aux différentes zones de dépôt
+Utilisée pour représenter le temps entre deux arrivées successives de lots.
 
-loi normale pour certains temps de chargement, déplacement et déchargement
+### Loi discrète
 
-La génération des valeurs suivant une loi normale est réalisée à l’aide de la méthode de Box-Muller à partir de nombres pseudo-aléatoires uniformes.
+Utilisée pour déterminer la zone de déchargement attribuée à chaque lot.
 
-Indicateurs de performance
+### Loi normale
 
-Le simulateur mesure plusieurs indicateurs afin d’analyser le fonctionnement du système :
+Utilisée pour représenter certains temps de :
 
-nombre de lots traités
+- chargement
+- déplacement
+- déchargement
 
-nombre d’attentes liées à l’indisponibilité de la zone de chargement
+La génération des variables suivant une loi normale est réalisée à l’aide de la **méthode de Box-Muller** à partir de nombres pseudo-aléatoires uniformes.
 
-nombre d’attentes lorsqu’un AGV arrive sur une zone de déchargement occupée
+---
 
-longueur maximale de la file d’attente
+## Indicateurs de performance
 
-Ces indicateurs permettent de comparer différentes configurations ou règles de fonctionnement du système.
+Plusieurs KPI sont calculés pendant la simulation afin d’évaluer le fonctionnement du système :
+
+- nombre de lots traités
+- nombre d’attentes liées à l’indisponibilité de la zone de chargement
+- nombre d’attentes lorsqu’un AGV arrive sur une zone de déchargement occupée
+- longueur maximale de la file d’attente
+- nombre total de lots arrivés pendant l’horizon de simulation
+
+Ces indicateurs permettent d'analyser le comportement du système et de comparer différentes règles ou configurations de fonctionnement.
+
+---
+
+## Structure du programme
+
+Le simulateur est organisé autour de plusieurs fonctions principales :
+
+- génération des variables aléatoires
+- gestion de la file d’attente
+- ajout et suppression des événements dans l’échéancier
+- traitement des différents types d’événements
+- mise à jour de l’état des AGV et des zones
+- calcul des indicateurs de performance
+
+L’algorithme principal traite successivement les événements jusqu’à atteindre l’horizon de simulation défini.
+
+---
+
+## Structure du dépôt
+
+```text
+Discrete-Event-Simulation-AGV/
+│
+├── README.md
+├── README_FR.md
+├── README_EN.md
+│
+└── src/
+    └── simulation_agv.c
