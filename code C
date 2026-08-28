@@ -4,7 +4,7 @@
 #include <math.h>   // Contient log(), sqrt(), cos() et M_PI 
 #include<time.h> 
  
-/////////////////////////////////////////////////////////////////////////////////////////////// 
+____________________ 
  
 // Les variables globales 
 bool Z[5] = {0, 0, 0, 0, 0}; // Tableau des états des zones du système 
@@ -42,7 +42,7 @@ int kpi_attentes_charg = 0;    // le nombre de fois que les agv ont été libér
 int kpi_attentes_zone = 0;     // AGV arrives sur une zone occupee 
 int kpi_stock_max = 0;         // longueur max de la file d'attente 
  
-/////////////////////////////////////////////////////////////////////////////////////////////// 
+____________________ 
  
 // Les lois telles que vues en cours 
 // LOI UNIFORME(0,1) 
@@ -99,7 +99,7 @@ double N(double m, double o) {
     return m + (z * o); 
 } 
  
-//////////////////////////////////////////////////////////////////////////////////////////////// 
+____________________ 
  
 //Déclarations des fonctions externes simulées 
 void Supprimer_File(void) { 
@@ -150,7 +150,7 @@ void Suprimer(void) {
     Tab[0][N_ev-1] = 2 * H; 
 } 
  
-///////////////////////////////////////////////////////////////////////////////////////////////// 
+_________________________ 
  
 // Les évènements 
 void Arrivee_lot(int i) { 
@@ -252,7 +252,7 @@ void Retour_camion(int j) {
     } 
 } 
  
-///////////////////////////////////////////////////////////////////////////////////////////////// 
+____________________ 
  
 // algo principal 
 int main(void) { 
