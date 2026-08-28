@@ -1,0 +1,319 @@
+#include <stdio.h> 
+#include <stdbool.h>  
+#include <stdlib.h> // Contient rand() et RAND_MAX 
+#include <math.h>   // Contient log(), sqrt(), cos() et M_PI 
+#include<time.h> 
+ 
+/////////////////////////////////////////////////////////////////////////////////////////////// 
+ 
+// Les variables globales 
+bool Z[5] = {0, 0, 0, 0, 0}; // Tableau des états des zones du système 
+// Tableau de l'état des camions(0 libre, i en zone de dépôt i, 100 occupé) 
+// z[0]=0 indique qu'il n'y a pas de camion affecté 
+int M[3] = {0, 0, 0}; 
+//nombre de lot dans la file 
+int F = 0; 
+// Tableau des zones de dépôt prochain 
+int File[2000]; 
+// Nombre d'évènement 
+int N_ev = 5; 
+//Echéancier 
+float Tab[4][5]; 
+//Horizon de simulation 
+float H = 2000; 
+//Variable temps 
+float t = 0; 
+// Nombre de lot arrivée au total 
+int ft = 0; 
+ 
+ 
+// Variables des lois simulées 
+int z0 =4; 
+int z1 = 1956; 
+double m[10] = {3.3161, 1.044, 1.044, 3.65, 3.65, 2.065, 2.065, 4.902, 4.902,  3.2}; 
+double o[10] = {0.092, 0.01, 0.01, 0.1, 0.1, 0.018, 0.018, 0.06, 0.06,  0.04}; 
+int X[4]={1 , 2 , 3 , 4}; 
+double P[4]= {0.132 , 0.208 , 0.321 , 0.34}; 
+float lambda = 1.0f / 3.0f; ; 
+ 
+// Compteurs de mesures (KPI) 
+int kpi_lots_traites = 0;      // debit : lots decharges 
+int kpi_attentes_charg = 0;    // le nombre de fois que les agv ont été libérés à cause de l'indisponiblité de la zone de déchargement 
+int kpi_attentes_zone = 0;     // AGV arrives sur une zone occupee 
+int kpi_stock_max = 0;         // longueur max de la file d'attente 
+ 
+/////////////////////////////////////////////////////////////////////////////////////////////// 
+ 
+// Les lois telles que vues en cours 
+// LOI UNIFORME(0,1) 
+ 
+float U_0_1(){ 
+    int a = 7 , b = 749, c = 1196; 
+    float z, R; 
+    z = (a*z0+b)%c; 
+    z0 = (int)z; 
+    R = z/c; 
+    return R; 
+} 
+ 
+float U_0_11(){ 
+    int a = 7 , b = 749, c = 1196; 
+    float z, R; 
+    z = (a*z1+b)%c; 
+    z1 = (int)z; 
+    R = z/c; 
+    return R; 
+} 
+ 
+// 1. LOI EXPONENTIELLE (Temps entre deux arrivées de lots) 
+float Expo(float lambda){ 
+    return (-1/lambda)*log(U_0_11()); 
+} 
+ 
+ // 3. LOI DISCRÈTE (Répartition des zone de dépôt) 
+int D(int X[],double P[]){ 
+    float s ,R;  
+    int i=0; 
+    s=P[i]; 
+    R = U_0_11(); 
+    while(s < R){ 
+        i = i+1; 
+        s=s + P[i]; 
+    } 
+    return X[i]; 
+} 
+ 
+// 2. LOI NORMALE / GAUSSIENNE (Temps de chargement et déchargement) 
+// Utilise la méthode de Box-Muller pour transformer deux nombres uniformes en une distribution de Gauss 
+double N(double m, double o) { 
+    double r1 = U_0_1(); 
+    double r2 = U_0_1(); 
+     
+    // Sécurité log(0) 
+    if (r1 == 0.0) r1 = 0.0000001; 
+     
+    // M_PI est la constante de Pi (3.14159...) définie dans <math.h> 
+    double z = sqrt(-2.0 * log(r1)) * cos(2.0 * M_PI * r2); 
+     
+    // Ajustement avec la moyenne (m) et l'écart-type (o) 
+    return m + (z * o); 
+} 
+ 
+//////////////////////////////////////////////////////////////////////////////////////////////// 
+ 
+//Déclarations des fonctions externes simulées 
+void Supprimer_File(void) { 
+    int k; 
+    for (k = 0; k < F - 1; k++) {  
+        File[k] = File[k + 1];     
+    } 
+    if (F > 0) { 
+        File[F - 1] = 0; 
+        F = F - 1; 
+    } 
+}  
+ 
+void Ajouter(float temps, int zone, int camion, int zone_depot) { 
+    int k = 0;  
+    int x; 
+     
+    // On cherche la position en veillant à ne pas dépasser l'indice 4 
+    while (k < N_ev - 1 && Tab[0][k] <= temps) {  
+        k = k + 1; 
+    } 
+     
+    // Correction : Le décalage commence à l'indice max autorisé (4) au lieu de 5 
+    for (x = N_ev-1; x > k; x--) {  
+        Tab[0][x] = Tab[0][x - 1]; 
+        Tab[1][x] = Tab[1][x - 1]; 
+        Tab[2][x] = Tab[2][x - 1]; 
+        Tab[3][x] = Tab[3][x - 1]; 
+    } 
+     
+    // Insertion à la bonne position (qui est forcément entre 0 et 4) 
+    Tab[0][k] = temps;  
+    Tab[1][k] = zone; 
+    Tab[2][k] = camion; 
+    Tab[3][k] = zone_depot;  
+} 
+ 
+void Suprimer(void) { 
+    int x; 
+    // On décale les éléments vers la gauche jusqu'à l'avant-dernière case (3) 
+    for (x = 0; x < N_ev-1; x++) {  
+        Tab[0][x] = Tab[0][x + 1]; 
+        Tab[1][x] = Tab[1][x + 1]; 
+        Tab[2][x] = Tab[2][x + 1]; 
+        Tab[3][x] = Tab[3][x + 1]; 
+    } 
+    // Correction : On "neutralise" la dernière case disponible (indice 4 au lieu de 5) 
+    Tab[0][N_ev-1] = 2 * H; 
+} 
+ 
+///////////////////////////////////////////////////////////////////////////////////////////////// 
+ 
+// Les évènements 
+void Arrivee_lot(int i) { 
+     
+    //float e=Expo(lambda); 
+    Ajouter(t + Expo(lambda), 1, 0, D(X , P));  
+    //printf("e = %f\n", e); 
+     
+    if (Z[0] == 0) {  
+        if (M[1] == 0) {  
+            Z[0]=1; 
+            M[1] = 100; 
+            Ajouter(t + N(m[0], o[0]), 2, 1, i);  
+             
+        } 
+        else if (M[2] == 0) {  
+            Z[0]=1; 
+            M[2] = 100;  
+            Ajouter(t +N(m[0], o[0]), 2, 2, i);  
+             
+        } 
+        else { 
+            File[F] = i; 
+            F = F + 1; 
+        } 
+    } 
+    else { 
+        File[F] = i; 
+        F = F + 1; 
+    } 
+    if(kpi_stock_max<F){ 
+        kpi_stock_max = F; 
+    } 
+} 
+ 
+void fin_Chargement_lot(int i, int j) { 
+    Ajouter(t + N(m[i], o[i]), 3, j, i);  
+    Z[0] = 0; 
+     
+     
+    if (F > 0) { 
+        if (M[1] == 0) {  
+            Ajouter(t + N(m[0], o[0]), 2, 1, File[0]);  
+            Z[0] = 1; 
+            Supprimer_File(); 
+            M[1] = 100;      
+        } 
+        else if (M[2] == 0) {  
+            Ajouter(t + N(m[0], o[0]), 2, 2, File[0]);  
+            Z[0] = 1; 
+            Supprimer_File(); 
+            M[2] = 100;      
+        } 
+    } 
+} 
+ 
+void Arrivee_en_i(int i, int j) { 
+    if (Z[i] == 0) {  
+        Z[i] = 1; 
+        Ajouter(t + N(m[9], o[9]), 4, j, i);  
+    } 
+    else { 
+        M[j] = i; 
+        kpi_attentes_zone = kpi_attentes_zone + 1; 
+    } 
+} 
+ 
+void Fin_dechargement(int i, int j) { 
+    Ajouter(t + N(m[2*i], o[2*i]), 5, j, i);  
+    Z[i] = 0; 
+    kpi_lots_traites = kpi_lots_traites + 1; 
+     
+    if (M[1] == i) {  
+        Ajouter(t + N(m[9], o[9]), 4, 1, i); 
+        Z[i] = 1; 
+        M[1] = 100; 
+    } 
+    else if (M[2] == i) {  
+        Ajouter(t + N(m[9], o[9]), 4, 2, i); 
+        Z[i] = 1; 
+        M[2] = 100; 
+    } 
+} 
+ 
+void Retour_camion(int j) { 
+    if (F > 0) { 
+        if (Z[0] == 0) {  
+            Ajouter(t + N(m[0], o[0]), 2, j, File[0]); 
+            Supprimer_File(); 
+            Z[0] = 1;  
+        } 
+        else { 
+            M[j] = 0; 
+            kpi_attentes_charg = kpi_attentes_charg + 1; 
+        } 
+    } 
+    else { 
+        M[j] = 0; 
+    } 
+} 
+ 
+///////////////////////////////////////////////////////////////////////////////////////////////// 
+ 
+// algo principal 
+int main(void) { 
+    int i;  
+    int j; 
+    int k; 
+ 
+    for (int lig = 0; lig < 4; lig++) { 
+        //z1 = time(NULL) % 1196; 
+        // 'col' va parcourir les 5 colonnes (0 à 4) 
+        for (int col = 0; col < N_ev; col++) { 
+             
+            if (lig == 0) { 
+                Tab[lig][col] = 2 * H;  // Ligne du temps : on met une valeur infinie (2000.0) 
+            } else if (lig == 1) { 
+                Tab[lig][col] = -1;     // Ligne du Type d'événement : -1 veut dire "aucun événement" 
+            } else { 
+                Tab[lig][col] = 0;      // Lignes Camion et Zone : on les remet à 0 par sécurité 
+            } 
+             
+        } 
+    } 
+     
+    Ajouter(t , 1, 0,  D(X , P )); 
+     
+     
+    while (t < H) { 
+        t = Tab[0][0]; 
+        j = (int)Tab[2][0]; 
+        i = (int)Tab[3][0]; 
+ 
+       // Formatage .2f pour le temps et .0f pour masquer les virgules sur les IDs d'événements/camions 
+        //printf("Temps: %7.2f | Type Ev: %.0f | Camion: %.0f | Zone Depot: %.0f\n",  
+               //Tab[0][0], Tab[1][0], Tab[2][0], Tab[3][0]); 
+         
+        if (Tab[1][0] == 1) {  
+            printf("Temps: %7.2f | Type Ev: %.0f | Camion: %.0f | Zone Depot: %.0f\n",  
+               Tab[0][0], Tab[1][0], Tab[2][0], Tab[3][0]); 
+            Arrivee_lot(i); 
+            ft = ft + 1; 
+             
+        } 
+        else if (Tab[1][0] == 2) {  
+            fin_Chargement_lot(i, j); 
+        } 
+        else if (Tab[1][0] == 3) {  
+            Arrivee_en_i(i, j); 
+        } 
+        else if (Tab[1][0] == 4) {  
+            Fin_dechargement(i, j); 
+        } 
+        else if (Tab[1][0] == 5) {  
+            Retour_camion(j);  
+        } 
+         
+        Suprimer();         
+    } 
+    printf("kpi_lots_traites = %d\n" , kpi_lots_traites); 
+    printf("kpi_attentes_charg = %d\n" , kpi_attentes_charg); 
+    printf("kpi_attentes_zone = %d\n" , kpi_attentes_zone); 
+    printf("kpi_stock_max = %d\n" , kpi_stock_max); 
+    printf("ft = %d\n" , ft +1); 
+    return 0; 
+} 
